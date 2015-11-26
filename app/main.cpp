@@ -43,19 +43,19 @@ Maintainer: Miguel Luis and Gregory Cristian
  *
  * \remark must be written as a little endian value (reverse order of normal reading)
  */
-#define LORAWAN_DEVICE_EUI                          { 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11 }
+#define LORAWAN_DEVICE_EUI                          { 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF }
 
 /*!
  * Application IEEE EUI
  *
  * \remark must be written as a little endian value (reverse order of normal reading)
  */
-#define LORAWAN_APPLICATION_EUI                     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 }
+#define LORAWAN_APPLICATION_EUI                     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
 
 /*!
  * AES encryption/decryption cipher application key
  */
-#define LORAWAN_APPLICATION_KEY                     { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00 }
+#define LORAWAN_APPLICATION_KEY                     { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01 }
 
 #else
 
@@ -69,25 +69,30 @@ Maintainer: Miguel Luis and Gregory Cristian
  *
  * \remark must be written as a big endian value (normal reading order)
  */
-#define LORAWAN_DEVICE_ADDRESS                      ( uint32_t )0x12345678
+#define LORAWAN_DEVICE_ADDRESS                      ( uint32_t )0xFF000001
 
 /*!
  * AES encryption/decryption cipher network session key
  */
-#define LORAWAN_NWKSKEY                             { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C }
+#define LORAWAN_NWKSKEY                             { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01 }
 
 /*!
  * AES encryption/decryption cipher application session key
  */
-#define LORAWAN_APPSKEY                             { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C }
+#define LORAWAN_APPSKEY                             { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x01 }
 
 #endif
 
 /*!
- * Defines the application data transmission duty cycle
+ * Defines the application data transmission duty cycle. 5s, value in [us].
  */
-#define APP_TX_DUTYCYCLE                            5000000  // 5 [s] value in us
-#define APP_TX_DUTYCYCLE_RND                        1000000  // 1 [s] value in us
+#define APP_TX_DUTYCYCLE                            5000000
+
+/*!
+ * Defines a random delay for application data transmission duty cycle. 1s,
+ * value in [us].
+ */
+#define APP_TX_DUTYCYCLE_RND                        1000000
 
 /*!
  * LoRaWAN confirmed messages
@@ -101,12 +106,16 @@ Maintainer: Miguel Luis and Gregory Cristian
  */
 #define LORAWAN_ADR_ON                              1
 
+#if defined( USE_BAND_868 )
+
 /*!
  * LoRaWAN ETSI duty cycle control enable/disable
  *
  * \remark Please note that ETSI mandates duty cycled transmissions. Use only for test purposes
  */
 #define LORAWAN_DUTYCYCLE_ON                        false
+
+#endif
 
 /*!
  * LoRaWAN application port
@@ -144,23 +153,46 @@ static bool IsNetworkJoined = false;
 static bool IsNetworkJoinedStatusUpdate = false;
 
 /*!
+ * Application port
+ */
+static uint8_t AppPort = LORAWAN_APP_PORT;
+
+/*!
+ * User application data size
+ */
+static uint8_t AppDataSize = LORAWAN_APP_DATA_SIZE;
+
+/*!
+ * User application data buffer size
+ */
+#define LORAWAN_APP_DATA_MAX_SIZE                           64
+
+/*!
  * User application data
  */
-static uint8_t AppData[LORAWAN_APP_DATA_SIZE];
+static uint8_t AppData[LORAWAN_APP_DATA_MAX_SIZE];
+
+/*!
+ * Indicates if the node is sending confirmed or unconfirmed messages
+ */
+static uint8_t IsTxConfirmed = LORAWAN_CONFIRMED_MSG_ON;
 
 /*!
  * Defines the application data transmission duty cycle
  */
 static uint32_t TxDutyCycleTime;
 
-TimerEvent_t TxNextPacketTimer;
+/*!
+ * Timer to handle the application data transmission duty cycle
+ */
+static TimerEvent_t TxNextPacketTimer;
 
 #if( OVER_THE_AIR_ACTIVATION != 0 )
 
 /*!
  * Defines the join request timer
  */
-TimerEvent_t JoinReqTimer;
+static TimerEvent_t JoinReqTimer;
 
 #endif
 
@@ -170,19 +202,27 @@ TimerEvent_t JoinReqTimer;
 static bool TxNextPacket = true;
 static bool ScheduleNextTx = false;
 
-static bool AppLedStateOn = false;
+static LoRaMacCallbacks_t LoRaMacCallbacks;
 
-static LoRaMacEvent_t LoRaMacEvents;
-
-TimerEvent_t Led1Timer;
+static TimerEvent_t Led1Timer;
+volatile bool Led1State = false;
 volatile bool Led1StateChanged = false;
 
-TimerEvent_t Led2Timer;
+static TimerEvent_t Led2Timer;
+volatile bool Led2State = false;
 volatile bool Led2StateChanged = false;
 
+static bool AppLedStateOn = false;
 volatile bool Led3StateChanged = false;
 
 volatile bool LinkStatusUpdated = false;
+
+static bool ComplianceTestOn = false;
+static uint8_t ComplianceTestState = 0;
+static uint16_t ComplianceTestDownLinkCounter = 0;
+static bool ComplianceTestLinkCheck = false;
+static uint8_t ComplianceTestDemodMargin = 0;
+static uint8_t ComplianceTestNbGateways = 0;
 
 struct sLoRaMacUplinkStatus
 {
@@ -223,7 +263,11 @@ void SerialDisplayRefresh( void )
     SerialDisplayUpdateNetworkIsJoined( IsNetworkJoined );
 
     SerialDisplayUpdateAdr( LORAWAN_ADR_ON );
+#if defined( USE_BAND_868 )
     SerialDisplayUpdateDutyCycle( LORAWAN_DUTYCYCLE_ON );
+#else
+    SerialDisplayUpdateDutyCycle( false );
+#endif
     SerialDisplayUpdatePublicNetwork( LORAWAN_PUBLIC_NETWORK );
     
     SerialDisplayUpdateLedState( 3, AppLedStateOn );
@@ -251,14 +295,47 @@ void SerialRxProcess( void )
  */
 static void PrepareTxFrame( uint8_t port )
 {
-    AppData[0] = AppLedStateOn;
-#if ( LORAWAN_CONFIRMED_MSG_ON == true )
-    AppData[1] = LoRaMacDownlinkStatus.DownlinkCounter >> 8;
-    AppData[2] = LoRaMacDownlinkStatus.DownlinkCounter;
-    AppData[3] = LoRaMacDownlinkStatus.Rssi >> 8;
-    AppData[4] = LoRaMacDownlinkStatus.Rssi;
-    AppData[5] = LoRaMacDownlinkStatus.Snr;
-#endif
+    switch( port )
+    {
+    case 15:
+        {
+            AppData[0] = AppLedStateOn;
+            if( IsTxConfirmed == true )
+            {
+                AppData[1] = LoRaMacDownlinkStatus.DownlinkCounter >> 8;
+                AppData[2] = LoRaMacDownlinkStatus.DownlinkCounter;
+                AppData[3] = LoRaMacDownlinkStatus.Rssi >> 8;
+                AppData[4] = LoRaMacDownlinkStatus.Rssi;
+                AppData[5] = LoRaMacDownlinkStatus.Snr;
+            }
+        }
+        break;
+    case 224:
+        if( ComplianceTestLinkCheck == true )
+        {
+            ComplianceTestLinkCheck = false;
+            AppDataSize = 3;
+            AppData[0] = 5;
+            AppData[1] = ComplianceTestDemodMargin;
+            AppData[2] = ComplianceTestNbGateways;
+            ComplianceTestState = 1;
+        }
+        else
+        {
+            switch( ComplianceTestState )
+            {
+            case 4:
+                ComplianceTestState = 1;
+                break;
+            case 1:
+                AppDataSize = 2;
+                AppData[0] = ComplianceTestDownLinkCounter >> 8;
+                AppData[1] = ComplianceTestDownLinkCounter;
+                break;
+            }
+        }
+        break;
+    }
 }
 
 static void ProcessRxFrame( LoRaMacEventFlags_t *flags, LoRaMacEventInfo_t *info )
@@ -273,6 +350,84 @@ static void ProcessRxFrame( LoRaMacEventFlags_t *flags, LoRaMacEventInfo_t *info
                 Led3StateChanged = true;
             }
             break;
+        case 224:
+            if( ComplianceTestOn == false )
+            {
+                // Check compliance test enable command (i)
+                if( ( info->RxBufferSize == 4 ) && 
+                    ( info->RxBuffer[0] == 0x01 ) &&
+                    ( info->RxBuffer[1] == 0x01 ) &&
+                    ( info->RxBuffer[2] == 0x01 ) &&
+                    ( info->RxBuffer[3] == 0x01 ) )
+                {
+                    IsTxConfirmed = false;
+                    AppPort = 224;
+                    AppDataSize = 2;
+                    ComplianceTestDownLinkCounter = 0;
+                    ComplianceTestLinkCheck = false;
+                    ComplianceTestDemodMargin = 0;
+                    ComplianceTestNbGateways = 0;
+                    ComplianceTestOn = true;
+                    ComplianceTestState = 1;
+                    
+                    LoRaMacSetAdrOn( true );
+#if defined( USE_BAND_868 )
+                    LoRaMacTestSetDutyCycleOn( false );
+#endif
+                }
+            }
+            else
+            {
+                ComplianceTestState = info->RxBuffer[0];
+                switch( ComplianceTestState )
+                {
+                case 0: // Check compliance test disable command (ii)
+                    IsTxConfirmed = LORAWAN_CONFIRMED_MSG_ON;
+                    AppPort = LORAWAN_APP_PORT;
+                    if( IsTxConfirmed == true )
+                    {
+                        AppDataSize = 6;
+                    }
+                    else
+                    {
+                        AppDataSize = 1;
+                    }
+                    ComplianceTestDownLinkCounter = 0;
+                    ComplianceTestOn = false;
+                    
+                    LoRaMacSetAdrOn( LORAWAN_ADR_ON );
+#if defined( USE_BAND_868 )
+                    LoRaMacTestSetDutyCycleOn( LORAWAN_DUTYCYCLE_ON );
+#endif
+                    break;
+                case 1: // (iii, iv)
+                    AppDataSize = 2;
+                    break;
+                case 2: // Enable confirmed messages (v)
+                    IsTxConfirmed = true;
+                    ComplianceTestState = 1;
+                    break;
+                case 3:  // Disable confirmed messages (vi)
+                    IsTxConfirmed = false;
+                    ComplianceTestState = 1;
+                    break;
+                case 4: // (vii)
+                    AppDataSize = info->RxBufferSize;
+
+                    AppData[0] = 4;
+                    for( uint8_t i = 1; i < AppDataSize; i++ )
+                    {
+                        AppData[i] = info->RxBuffer[i] + 1;
+                    }
+                    break;
+                case 5: // (viii)
+                    LoRaMacLinkCheckReq( );
+                    break;
+                default:
+                    break;
+                }
+            }
+            break;
         default:
             break;
     }
@@ -283,16 +438,21 @@ static bool SendFrame( void )
     uint8_t sendFrameStatus = 0;
 
     LoRaMacUplinkStatus.Acked = false;
-    LoRaMacUplinkStatus.Port = LORAWAN_APP_PORT;
+    LoRaMacUplinkStatus.Port = AppPort;
     LoRaMacUplinkStatus.Buffer = AppData;
-    LoRaMacUplinkStatus.BufferSize = LORAWAN_APP_DATA_SIZE;
+    LoRaMacUplinkStatus.BufferSize = AppDataSize;
     
-    SerialDisplayUpdateFrameType( LORAWAN_CONFIRMED_MSG_ON );
-#if( LORAWAN_CONFIRMED_MSG_ON == false )
-    sendFrameStatus = LoRaMacSendFrame( LORAWAN_APP_PORT, AppData, LORAWAN_APP_DATA_SIZE );
-#else
-    sendFrameStatus = LoRaMacSendConfirmedFrame( LORAWAN_APP_PORT, AppData, LORAWAN_APP_DATA_SIZE, 8 );
-#endif
+    SerialDisplayUpdateFrameType( IsTxConfirmed );
+
+    if( IsTxConfirmed == false )
+    {
+        sendFrameStatus = LoRaMacSendFrame( AppPort, AppData, AppDataSize );
+    }
+    else
+    {
+        sendFrameStatus = LoRaMacSendConfirmedFrame( AppPort, AppData, AppDataSize, 8 );
+    }
+
     switch( sendFrameStatus )
     {
     case 5: // NO_FREE_CHANNEL
@@ -331,6 +491,7 @@ static void OnTxNextPacketTimerEvent( void )
 static void OnLed1TimerEvent( void )
 {
     TimerStop( &Led1Timer );
+    Led1State = false;
     Led1StateChanged = true;
 }
 
@@ -340,6 +501,7 @@ static void OnLed1TimerEvent( void )
 static void OnLed2TimerEvent( void )
 {
     TimerStop( &Led2Timer );
+    Led2State = false;
     Led2StateChanged = true;
 }
 
@@ -364,6 +526,16 @@ static void OnMacEvent( LoRaMacEventFlags_t *flags, LoRaMacEventInfo_t *info )
 
         if( flags->Bits.Rx == 1 )
         {
+            if( ComplianceTestOn == true )
+            {
+                ComplianceTestDownLinkCounter++;
+                if( flags->Bits.LinkCheck == 1 )
+                {
+                    ComplianceTestLinkCheck = true;
+                    ComplianceTestDemodMargin = info->DemodMargin;
+                    ComplianceTestNbGateways = info->NbGateways;
+                }
+            }
             if( flags->Bits.RxData == true )
             {
                 ProcessRxFrame( flags, info );
@@ -387,14 +559,17 @@ static void OnMacEvent( LoRaMacEventFlags_t *flags, LoRaMacEventInfo_t *info )
             LoRaMacDownlinkStatus.Buffer = info->RxBuffer;
             LoRaMacDownlinkStatus.BufferSize = info->RxBufferSize;
             
-            LoRaMacUplinkStatus.Acked = info->TxAckReceived;
-            LoRaMacUplinkStatus.Datarate = info->TxDatarate;
-            LoRaMacUplinkStatus.UplinkCounter = LoRaMacGetUpLinkCounter( ) - 1;
-            
-            LinkStatusUpdated = true;
+            Led2State = true;
+            Led2StateChanged = true;
             TimerStart( &Led2Timer );
         }
+        
+        LoRaMacUplinkStatus.Acked = info->TxAckReceived;
+        LoRaMacUplinkStatus.Datarate = info->TxDatarate;
+        LoRaMacUplinkStatus.UplinkCounter = LoRaMacGetUpLinkCounter( ) - 1;
     }
+
+    LinkStatusUpdated = true;
     // Schedule a new transmission
     ScheduleNextTx = true;
 }
@@ -413,8 +588,9 @@ int main( void )
 
     BoardInit( );
 
-    LoRaMacEvents.MacEvent = OnMacEvent;
-    LoRaMacInit( &LoRaMacEvents, &BoardGetBatterieLevel );
+    LoRaMacCallbacks.MacEvent = OnMacEvent;
+    LoRaMacCallbacks.GetBatteryLevel = BoardGetBatteryLevel;
+    LoRaMacInit( &LoRaMacCallbacks );
 
     IsNetworkJoined = false;
 
@@ -451,11 +627,17 @@ int main( void )
     TimerSetValue( &Led2Timer, 500000 );
 
     LoRaMacSetAdrOn( LORAWAN_ADR_ON );
+#if defined( USE_BAND_868 )
     LoRaMacTestSetDutyCycleOn( LORAWAN_DUTYCYCLE_ON );
+#endif
     LoRaMacSetPublicNetwork( LORAWAN_PUBLIC_NETWORK );
 
     SerialDisplayUpdateAdr( LORAWAN_ADR_ON );
+#if defined( USE_BAND_868 )
     SerialDisplayUpdateDutyCycle( LORAWAN_DUTYCYCLE_ON );
+#else
+    SerialDisplayUpdateDutyCycle( false );
+#endif
     SerialDisplayUpdatePublicNetwork( LORAWAN_PUBLIC_NETWORK );
     
     LoRaMacDownlinkStatus.DownlinkCounter = 0;
@@ -499,12 +681,12 @@ int main( void )
         if( Led1StateChanged == true )
         {
             Led1StateChanged = false;
-            SerialDisplayUpdateLedState( 1, 0 );
+            SerialDisplayUpdateLedState( 1, Led1State );
         }
         if( Led2StateChanged == true )
         {
             Led2StateChanged = false;
-            SerialDisplayUpdateLedState( 2, 0 );
+            SerialDisplayUpdateLedState( 2, Led2State );
         }
         if( Led3StateChanged == true )
         {
@@ -514,7 +696,7 @@ int main( void )
         if( LinkStatusUpdated == true )
         {
             LinkStatusUpdated = false;
-            SerialDisplayUpdateLedState( 2, 1 );
+            SerialDisplayUpdateLedState( 2, Led2State );
             SerialDisplayUpdateUplink( LoRaMacUplinkStatus.Acked, LoRaMacUplinkStatus.Datarate, LoRaMacUplinkStatus.UplinkCounter, LoRaMacUplinkStatus.Port, LoRaMacUplinkStatus.Buffer, LoRaMacUplinkStatus.BufferSize );
             SerialDisplayUpdateDownlink( LoRaMacDownlinkStatus.RxData, LoRaMacDownlinkStatus.Rssi, LoRaMacDownlinkStatus.Snr, LoRaMacDownlinkStatus.DownlinkCounter, LoRaMacDownlinkStatus.Port, LoRaMacDownlinkStatus.Buffer, LoRaMacDownlinkStatus.BufferSize );
         }
@@ -522,10 +704,18 @@ int main( void )
         if( ScheduleNextTx == true )
         {
             ScheduleNextTx = false;
-            // Schedule next packet transmission
-            TxDutyCycleTime = APP_TX_DUTYCYCLE + randr( -APP_TX_DUTYCYCLE_RND, APP_TX_DUTYCYCLE_RND );
-            TimerSetValue( &TxNextPacketTimer, TxDutyCycleTime );
-            TimerStart( &TxNextPacketTimer );
+ 
+//            if( ComplianceTestOn == true )
+//            {
+//                TxNextPacket = true;
+//            }
+//            else
+//            {
+                // Schedule next packet transmission
+                TxDutyCycleTime = APP_TX_DUTYCYCLE + randr( -APP_TX_DUTYCYCLE_RND, APP_TX_DUTYCYCLE_RND );
+                TimerSetValue( &TxNextPacketTimer, TxDutyCycleTime );
+                TimerStart( &TxNextPacketTimer );
+//            }
         }
 
         if( trySendingFrameAgain == true )
@@ -538,9 +728,10 @@ int main( void )
         
             SerialDisplayUpdateDonwlinkRxData( false );
             
-            PrepareTxFrame( LORAWAN_APP_PORT );
+            PrepareTxFrame( AppPort );
             
-            SerialDisplayUpdateLedState( 1, 1 );
+            Led1State = true;
+            SerialDisplayUpdateLedState( 1, Led1State );
             TimerStart( &Led1Timer );
 
             trySendingFrameAgain = SendFrame( );

@@ -16,9 +16,14 @@ Maintainer: Miguel Luis and Gregory Cristian
 #define __BOARD_H__
 
 #include "mbed.h"
-#include "timer.h"
+#include "system/timer.h"
 #include "debug.h"
-#include "utilities.h"
+#include "system/utilities.h"
+#include "sx1276-hal.h"
+
+#define USE_BAND_915_HYBRID
+
+extern SX1276MB1xAS Radio;
 
 /*!
  * \brief Initializes the target board peripherals.
@@ -30,7 +35,7 @@ void BoardInit( void );
  *
  * \retval value  battery level ( 0: very low, 254: fully charged )
  */
-uint8_t BoardGetBatterieLevel( void );
+uint8_t BoardGetBatteryLevel( void );
 
 
 #endif // __BOARD_H__

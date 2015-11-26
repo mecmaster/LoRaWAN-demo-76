@@ -16,27 +16,6 @@ Maintainer: Miguel Luis and Gregory Cristian
 #include "vt100.h"
 #include "SerialDisplay.h"
 
-//extern struct sLoRaMacUplinkStatus
-//{
-//    uint8_t Acked;
-//    int8_t Datarate;
-//    uint16_t UplinkCounter;
-//    uint8_t Port;
-//    uint8_t *Buffer;
-//    uint8_t BufferSize;
-//}LoRaMacUplinkStatus;
-//
-//extern struct sLoRaMacDownlinkStatus
-//{
-//    int16_t Rssi;
-//    int8_t Snr;
-//    uint16_t DownlinkCounter;
-//    bool RxData;
-//    uint8_t Port;
-//    uint8_t *Buffer;
-//    uint8_t BufferSize;
-//}LoRaMacDownlinkStatus;
-
 VT100 vt( USBTX, USBRX );
 
 void SerialPrintCheckBox( bool activated, uint8_t color )

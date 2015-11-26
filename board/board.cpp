@@ -15,13 +15,15 @@ Maintainer: Miguel Luis and Gregory Cristian
 #include "mbed.h"
 #include "board.h"
 
+SX1276MB1xAS Radio( NULL );
+
 void BoardInit( void )
 {
     TimerTimeCounterInit( );
 }
 
 
-uint8_t BoardGetBatterieLevel( void ) 
+uint8_t BoardGetBatteryLevel( void ) 
 {
     return 0xFE;
 }
