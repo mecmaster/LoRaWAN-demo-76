@@ -41,15 +41,11 @@ void SerialDisplayUpdateActivationMode( bool otaa )
 }
 
 void SerialDisplayUpdateEui( uint8_t line, uint8_t *eui )
-{   //
-    // REMARK
-    //
-    // EUIs must be displayed in reverse order
-    //
+{
     vt.SetCursorPos( line, 27 );
     for( uint8_t i = 0; i < 8; i++ )
     {
-        vt.printf( "%02X ", eui[7 - i] );
+        vt.printf( "%02X ", eui[i] );
     }
     vt.SetCursorPos( line, 50 );
     vt.printf( "]" );
@@ -213,7 +209,7 @@ void SerialDisplayUpdateUplink( bool acked, uint8_t datarate, uint16_t counter, 
     SerialDisplayUpdateData( 28, buffer, bufferSize );
     // Help message
     vt.SetCursorPos( 42, 1 );
-    vt.printf( "To refresh screen please hit 'r' key.\r\n" );
+    vt.printf( "To refresh screen please hit 'r' key." );
 }
 
 void SerialDisplayUpdateDonwlinkRxData( bool state )

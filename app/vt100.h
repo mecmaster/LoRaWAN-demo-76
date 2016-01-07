@@ -15,7 +15,16 @@ Maintainer: Miguel Luis and Gregory Cristian
 #ifndef __VT100_H__
 #define __VT100_H__
 
-class VT100 : public Serial
+#ifndef STRING_STACK_LIMIT
+#define STRING_STACK_LIMIT    120
+#endif
+
+/**
+ * Implements VT100 terminal commands support.
+ * Implments also the same behaviour has RawSerial class. The only difference
+ * is located in putc fucntion where writeable check is made befor sending the character.
+ */
+class VT100 : public SerialBase
 {
 public:
     enum TextAttributes
@@ -42,10 +51,8 @@ public:
         CYAN    = 6,
         WHITE   = 7,
     };
-    /*!
-     *
-     */
-    VT100( PinName tx, PinName rx ): Serial( tx, rx )
+
+    VT100( PinName tx, PinName rx ): SerialBase( tx, rx )
     {
         this->baud( 115200 );
         // initializes terminal to "power-on" settings
@@ -59,7 +66,6 @@ public:
         // 0    Clear screen from cursor down
         // 1    Clear screen from cursor up
         // 2    Clear entire screen 
-
         this->printf( "\x1B[%dJ", param );
     }
 
@@ -69,7 +75,6 @@ public:
         // 0    Erase from the active position to the end of the line, inclusive (default)
         // 1    Erase from the start of the screen to the active position, inclusive
         // 2    Erase all of the line, inclusive
-
         this->printf( "\x1B[%dK", param );
     }
 
@@ -137,6 +142,70 @@ public:
     {
         return this->getc( );
     }
+
+    /*
+     * RawSerial class implmentation copy.
+     */
+    /** Read a char from the serial port
+     *
+     * @returns The char read from the serial port
+     */
+    int getc( )
+    {
+        return _base_getc();
+    }
+
+    /** Write a char to the serial port
+     *
+     * @param c The char to write
+     *
+     * @returns The written char or -1 if an error occured
+     */
+    int putc( int c )
+    {
+        while( this->writeable( ) != 1 );
+        return _base_putc( c );
+    }
+
+    /** Write a string to the serial port
+     *
+     * @param str The string to write
+     *
+     * @returns 0 if the write succeeds, EOF for error
+     */
+    int puts( const char *str )
+    {
+        while( *str )
+            putc( *str++ );
+        return 0;
+    }
+
+    // Experimental support for printf in RawSerial. No Stream inheritance
+    // means we can't call printf() directly, so we use sprintf() instead.
+    // We only call malloc() for the sprintf() buffer if the buffer
+    // length is above a certain threshold, otherwise we use just the stack.
+    int printf( const char *format, ... )
+    {
+        std::va_list arg;
+        va_start( arg, format );
+        int len = vsnprintf( NULL, 0, format, arg );
+        if( len < STRING_STACK_LIMIT )
+        {
+            char temp[STRING_STACK_LIMIT];
+            vsprintf( temp, format, arg );
+            puts( temp );
+        }
+        else
+        {
+            char *temp = new char[len + 1];
+            vsprintf( temp, format, arg );
+            puts( temp );
+            delete[] temp;
+        }
+        va_end( arg );
+        return len;
+    }
+
 private:
     
 };

@@ -21,7 +21,7 @@ Maintainer: Miguel Luis and Gregory Cristian
 #include "system/utilities.h"
 #include "sx1276-hal.h"
 
-#define USE_BAND_915_HYBRID
+#define USE_BAND_868
 
 extern SX1276MB1xAS Radio;
 
@@ -36,6 +36,5 @@ void BoardInit( void );
  * \retval value  battery level ( 0: very low, 254: fully charged )
  */
 uint8_t BoardGetBatteryLevel( void );
-
 
 #endif // __BOARD_H__
