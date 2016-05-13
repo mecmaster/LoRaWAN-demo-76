@@ -23,7 +23,7 @@ Maintainer: Miguel Luis and Gregory Cristian
 /*!
  * Join requests trials duty cycle.
  */
-#define OVER_THE_AIR_ACTIVATION_DUTYCYCLE           10000000  // 10 [s] value in us
+#define OVER_THE_AIR_ACTIVATION_DUTYCYCLE           10000000 // 10 [s] value in us
 
 /*!
  * Defines the application data transmission duty cycle. 5s, value in [us].
@@ -37,7 +37,7 @@ Maintainer: Miguel Luis and Gregory Cristian
 #define APP_TX_DUTYCYCLE_RND                        1000000
 
 /*!
- * Default mote datarate
+ * Default datarate
  */
 #define LORAWAN_DEFAULT_DATARATE                    DR_0
 
@@ -63,6 +63,20 @@ Maintainer: Miguel Luis and Gregory Cristian
  * \remark Please note that ETSI mandates duty cycled transmissions. Use only for test purposes
  */
 #define LORAWAN_DUTYCYCLE_ON                        true
+
+#define USE_SEMTECH_DEFAULT_CHANNEL_LINEUP          1
+
+#if( USE_SEMTECH_DEFAULT_CHANNEL_LINEUP == 1 ) 
+
+#define LC4                { 867100000, { ( ( DR_5 << 4 ) | DR_0 ) }, 0 }
+#define LC5                { 867300000, { ( ( DR_5 << 4 ) | DR_0 ) }, 0 }
+#define LC6                { 867500000, { ( ( DR_5 << 4 ) | DR_0 ) }, 0 }
+#define LC7                { 867700000, { ( ( DR_5 << 4 ) | DR_0 ) }, 0 }
+#define LC8                { 867900000, { ( ( DR_5 << 4 ) | DR_0 ) }, 0 }
+#define LC9                { 868800000, { ( ( DR_7 << 4 ) | DR_7 ) }, 2 }
+#define LC10               { 868300000, { ( ( DR_6 << 4 ) | DR_6 ) }, 1 }
+
+#endif
 
 #endif
 
@@ -342,7 +356,7 @@ static bool SendFrame( void )
         mcpsReq.Req.Unconfirmed.fBuffer = NULL;
         mcpsReq.Req.Unconfirmed.fBufferSize = 0;
         mcpsReq.Req.Unconfirmed.Datarate = LORAWAN_DEFAULT_DATARATE;
-        
+
         LoRaMacUplinkStatus.Acked = false;
         LoRaMacUplinkStatus.Port = 0;
         LoRaMacUplinkStatus.Buffer = NULL;
@@ -435,14 +449,14 @@ static void OnLed2TimerEvent( void )
 /*!
  * \brief   MCPS-Confirm event function
  *
- * \param   [IN] McpsConfirm - Pointer to the confirm structure,
+ * \param   [IN] mcpsConfirm - Pointer to the confirm structure,
  *               containing confirm attributes.
  */
-static void McpsConfirm( McpsConfirm_t *McpsConfirm )
+static void McpsConfirm( McpsConfirm_t *mcpsConfirm )
 {
-    if( McpsConfirm->Status == LORAMAC_EVENT_INFO_STATUS_OK )
+    if( mcpsConfirm->Status == LORAMAC_EVENT_INFO_STATUS_OK )
     {
-        switch( McpsConfirm->McpsRequest )
+        switch( mcpsConfirm->McpsRequest )
         {
             case MCPS_UNCONFIRMED:
             {
@@ -455,8 +469,8 @@ static void McpsConfirm( McpsConfirm_t *McpsConfirm )
                 // Check Datarate
                 // Check TxPower
                 // Check AckReceived
-                // Check NbRetries
-                LoRaMacUplinkStatus.Acked = McpsConfirm->AckReceived;
+                // Check NbTrials
+                LoRaMacUplinkStatus.Acked = mcpsConfirm->AckReceived;
                 break;
             }
             case MCPS_PROPRIETARY:
@@ -466,9 +480,9 @@ static void McpsConfirm( McpsConfirm_t *McpsConfirm )
             default:
                 break;
         }
-        LoRaMacUplinkStatus.Datarate = McpsConfirm->Datarate;
-        LoRaMacUplinkStatus.UplinkCounter = McpsConfirm->UpLinkCounter;
-    
+        LoRaMacUplinkStatus.Datarate = mcpsConfirm->Datarate;
+        LoRaMacUplinkStatus.UplinkCounter = mcpsConfirm->UpLinkCounter;
+
         UplinkStatusUpdated = true;
     }
     NextTx = true;
@@ -477,17 +491,17 @@ static void McpsConfirm( McpsConfirm_t *McpsConfirm )
 /*!
  * \brief   MCPS-Indication event function
  *
- * \param   [IN] McpsIndication - Pointer to the indication structure,
+ * \param   [IN] mcpsIndication - Pointer to the indication structure,
  *               containing indication attributes.
  */
-static void McpsIndication( McpsIndication_t *McpsIndication )
+static void McpsIndication( McpsIndication_t *mcpsIndication )
 {
-    if( McpsIndication->Status != LORAMAC_EVENT_INFO_STATUS_OK )
+    if( mcpsIndication->Status != LORAMAC_EVENT_INFO_STATUS_OK )
     {
         return;
     }
 
-    switch( McpsIndication->McpsIndication )
+    switch( mcpsIndication->McpsIndication )
     {
         case MCPS_UNCONFIRMED:
         {
@@ -518,38 +532,38 @@ static void McpsIndication( McpsIndication_t *McpsIndication )
     // Check Rssi
     // Check Snr
     // Check RxSlot
-    LoRaMacDownlinkStatus.Rssi = McpsIndication->Rssi;
-    if( McpsIndication->Snr & 0x80 ) // The SNR sign bit is 1
+    LoRaMacDownlinkStatus.Rssi = mcpsIndication->Rssi;
+    if( mcpsIndication->Snr & 0x80 ) // The SNR sign bit is 1
     {
         // Invert and divide by 4
-        LoRaMacDownlinkStatus.Snr = ( ( ~McpsIndication->Snr + 1 ) & 0xFF ) >> 2;
+        LoRaMacDownlinkStatus.Snr = ( ( ~mcpsIndication->Snr + 1 ) & 0xFF ) >> 2;
         LoRaMacDownlinkStatus.Snr = -LoRaMacDownlinkStatus.Snr;
     }
     else
     {
         // Divide by 4
-        LoRaMacDownlinkStatus.Snr = ( McpsIndication->Snr & 0xFF ) >> 2;
+        LoRaMacDownlinkStatus.Snr = ( mcpsIndication->Snr & 0xFF ) >> 2;
     }
     LoRaMacDownlinkStatus.DownlinkCounter++;
-    LoRaMacDownlinkStatus.RxData = McpsIndication->RxData;
-    LoRaMacDownlinkStatus.Port = McpsIndication->Port;
-    LoRaMacDownlinkStatus.Buffer = McpsIndication->Buffer;
-    LoRaMacDownlinkStatus.BufferSize = McpsIndication->BufferSize;
+    LoRaMacDownlinkStatus.RxData = mcpsIndication->RxData;
+    LoRaMacDownlinkStatus.Port = mcpsIndication->Port;
+    LoRaMacDownlinkStatus.Buffer = mcpsIndication->Buffer;
+    LoRaMacDownlinkStatus.BufferSize = mcpsIndication->BufferSize;
 
     if( ComplianceTest.Running == true )
     {
         ComplianceTest.DownLinkCounter++;
     }
 
-    if( McpsIndication->RxData == true )
+    if( mcpsIndication->RxData == true )
     {
-        switch( McpsIndication->Port )
+        switch( mcpsIndication->Port )
         {
         case 1: // The application LED can be controlled on port 1 or 2
         case 2:
-            if( McpsIndication->BufferSize == 1 )
+            if( mcpsIndication->BufferSize == 1 )
             {
-                AppLedStateOn = McpsIndication->Buffer[0] & 0x01;
+                AppLedStateOn = mcpsIndication->Buffer[0] & 0x01;
                 Led3StateChanged = true;
             }
             break;
@@ -557,11 +571,11 @@ static void McpsIndication( McpsIndication_t *McpsIndication )
             if( ComplianceTest.Running == false )
             {
                 // Check compliance test enable command (i)
-                if( ( McpsIndication->BufferSize == 4 ) && 
-                    ( McpsIndication->Buffer[0] == 0x01 ) &&
-                    ( McpsIndication->Buffer[1] == 0x01 ) &&
-                    ( McpsIndication->Buffer[2] == 0x01 ) &&
-                    ( McpsIndication->Buffer[3] == 0x01 ) )
+                if( ( mcpsIndication->BufferSize == 4 ) &&
+                    ( mcpsIndication->Buffer[0] == 0x01 ) &&
+                    ( mcpsIndication->Buffer[1] == 0x01 ) &&
+                    ( mcpsIndication->Buffer[2] == 0x01 ) &&
+                    ( mcpsIndication->Buffer[3] == 0x01 ) )
                 {
                     IsTxConfirmed = false;
                     AppPort = 224;
@@ -585,7 +599,7 @@ static void McpsIndication( McpsIndication_t *McpsIndication )
             }
             else
             {
-                ComplianceTest.State = McpsIndication->Buffer[0];
+                ComplianceTest.State = mcpsIndication->Buffer[0];
                 switch( ComplianceTest.State )
                 {
                 case 0: // Check compliance test disable command (ii)
@@ -615,12 +629,12 @@ static void McpsIndication( McpsIndication_t *McpsIndication )
                     ComplianceTest.State = 1;
                     break;
                 case 4: // (vii)
-                    AppDataSize = McpsIndication->BufferSize;
+                    AppDataSize = mcpsIndication->BufferSize;
 
                     AppData[0] = 4;
                     for( uint8_t i = 1; i < AppDataSize; i++ )
                     {
-                        AppData[i] = McpsIndication->Buffer[i] + 1;
+                        AppData[i] = mcpsIndication->Buffer[i] + 1;
                     }
                     break;
                 case 5: // (viii)
@@ -650,14 +664,14 @@ static void McpsIndication( McpsIndication_t *McpsIndication )
 /*!
  * \brief   MLME-Confirm event function
  *
- * \param   [IN] MlmeConfirm - Pointer to the confirm structure,
+ * \param   [IN] mlmeConfirm - Pointer to the confirm structure,
  *               containing confirm attributes.
  */
-static void MlmeConfirm( MlmeConfirm_t *MlmeConfirm )
+static void MlmeConfirm( MlmeConfirm_t *mlmeConfirm )
 {
-    if( MlmeConfirm->Status == LORAMAC_EVENT_INFO_STATUS_OK )
+    if( mlmeConfirm->Status == LORAMAC_EVENT_INFO_STATUS_OK )
     {
-        switch( MlmeConfirm->MlmeRequest )
+        switch( mlmeConfirm->MlmeRequest )
         {
             case MLME_JOIN:
             {
@@ -672,8 +686,8 @@ static void MlmeConfirm( MlmeConfirm_t *MlmeConfirm )
                 if( ComplianceTest.Running == true )
                 {
                     ComplianceTest.LinkCheck = true;
-                    ComplianceTest.DemodMargin = MlmeConfirm->DemodMargin;
-                    ComplianceTest.NbGateways = MlmeConfirm->NbGateways;
+                    ComplianceTest.DemodMargin = mlmeConfirm->DemodMargin;
+                    ComplianceTest.NbGateways = mlmeConfirm->NbGateways;
                 }
                 break;
             }
@@ -765,6 +779,17 @@ int main( void )
 #if defined( USE_BAND_868 )
                 LoRaMacTestSetDutyCycleOn( LORAWAN_DUTYCYCLE_ON );
                 SerialDisplayUpdateDutyCycle( LORAWAN_DUTYCYCLE_ON );
+
+#if( USE_SEMTECH_DEFAULT_CHANNEL_LINEUP == 1 ) 
+                LoRaMacChannelAdd( 3, ( ChannelParams_t )LC4 );
+                LoRaMacChannelAdd( 4, ( ChannelParams_t )LC5 );
+                LoRaMacChannelAdd( 5, ( ChannelParams_t )LC6 );
+                LoRaMacChannelAdd( 6, ( ChannelParams_t )LC7 );
+                LoRaMacChannelAdd( 7, ( ChannelParams_t )LC8 );
+                LoRaMacChannelAdd( 8, ( ChannelParams_t )LC9 );
+                LoRaMacChannelAdd( 9, ( ChannelParams_t )LC10 );
+#endif
+
 #endif
                 SerialDisplayUpdateActivationMode( OVER_THE_AIR_ACTIVATION );
                 SerialDisplayUpdateAdr( LORAWAN_ADR_ON );
@@ -847,8 +872,8 @@ int main( void )
                 }
                 if( ComplianceTest.Running == true )
                 {
-                    // Schedule next packet transmission as soon as possible
-                    TxDutyCycleTime = 1000; // 1 ms
+                    // Schedule next packet transmission
+                    TxDutyCycleTime = 5000000; // 5000000 us
                 }
                 else
                 {
@@ -860,11 +885,11 @@ int main( void )
             }
             case DEVICE_STATE_CYCLE:
             {
+                DeviceState = DEVICE_STATE_SLEEP;
+
                 // Schedule next packet transmission
                 TimerSetValue( &TxNextPacketTimer, TxDutyCycleTime );
                 TimerStart( &TxNextPacketTimer );
-
-                DeviceState = DEVICE_STATE_SLEEP;
                 break;
             }
             case DEVICE_STATE_SLEEP:

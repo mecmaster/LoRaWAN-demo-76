@@ -29,9 +29,14 @@ Maintainer: Miguel Luis and Gregory Cristian
 #if( OVER_THE_AIR_ACTIVATION != 0 )
 
 /*!
+ * IEEE Organizationally Unique Identifier ( OUI ) (big endian)
+ */
+#define IEEE_OUI                                    0x11, 0x22, 0x33
+
+/*!
  * Mote device IEEE EUI (big endian)
  */
-#define LORAWAN_DEVICE_EUI                          { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 }
+#define LORAWAN_DEVICE_EUI                          { IEEE_OUI, 0x44, 0x55, 0x66, 0x77, 0x88 }
 
 /*!
  * Application IEEE EUI (big endian)

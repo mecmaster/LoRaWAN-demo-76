@@ -40,6 +40,22 @@ TimerTime_t TimerGetCurrentTime( void )
     return ( ( TimerTime_t )CurrentTime );
 }
 
+TimerTime_t TimerGetElapsedTime( TimerTime_t savedTime )
+{
+    CurrentTime += TimeCounter.read_us( );
+    TimeCounter.reset( );
+    TimeCounter.start( );
+    return ( TimerTime_t )( CurrentTime - savedTime );
+}
+
+TimerTime_t TimerGetFutureTime( TimerTime_t eventInFuture )
+{
+    CurrentTime += TimeCounter.read_us( );
+    TimeCounter.reset( );
+    TimeCounter.start( );
+    return ( TimerTime_t )( CurrentTime + eventInFuture );
+}
+
 void TimerInit( TimerEvent_t *obj, void ( *callback )( void ) )
 {
     obj->value = 0;
