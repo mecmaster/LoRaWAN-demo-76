@@ -6,14 +6,14 @@
 (______/|_____)_|_|_| \__)_____)\____)_| |_|
     (C)2015 Semtech
 
-Description: End device comissioning parameters
+Description: End device commissioning parameters
 
 License: Revised BSD License, see LICENSE.TXT file include in the project
 
 Maintainer: Miguel Luis and Gregory Cristian
 */
-#ifndef __LORA_COMISSIONING_H__
-#define __LORA_COMISSIONING_H__
+#ifndef __LORA_COMMISSIONING_H__
+#define __LORA_COMMISSIONING_H__
 
 /*!
  * When set to 1 the application uses the Over-the-Air activation procedure
@@ -25,8 +25,6 @@ Maintainer: Miguel Luis and Gregory Cristian
  * Indicates if the end-device is to be connected to a private or public network
  */
 #define LORAWAN_PUBLIC_NETWORK                      true
-
-#if( OVER_THE_AIR_ACTIVATION != 0 )
 
 /*!
  * IEEE Organizationally Unique Identifier ( OUI ) (big endian)
@@ -48,8 +46,6 @@ Maintainer: Miguel Luis and Gregory Cristian
  */
 #define LORAWAN_APPLICATION_KEY                     { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C }
 
-#else
-
 /*!
  * Current network ID
  */
@@ -70,6 +66,4 @@ Maintainer: Miguel Luis and Gregory Cristian
  */
 #define LORAWAN_APPSKEY                             { 0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C }
 
-#endif
-
-#endif // __LORA_COMISSIONING_H__
+#endif // __LORA_COMMISSIONING_H__

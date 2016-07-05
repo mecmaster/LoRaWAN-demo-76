@@ -22,7 +22,7 @@ Maintainer: Miguel Luis and Gregory Cristian
  */
 typedef struct TimerEvent_s
 {
-    uint32_t value;
+    uint64_t value;
     void ( *Callback )( void );
     Ticker Timer;
 }TimerEvent_t;
@@ -31,7 +31,7 @@ typedef struct TimerEvent_s
  * \brief Timer time variable definition
  */
 #ifndef TimerTime_t
-typedef uint32_t TimerTime_t;
+typedef uint64_t TimerTime_t;
 #endif
 
 /*!

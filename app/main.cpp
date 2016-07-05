@@ -21,11 +21,6 @@ Maintainer: Miguel Luis and Gregory Cristian
 #include "SerialDisplay.h"
 
 /*!
- * Join requests trials duty cycle.
- */
-#define OVER_THE_AIR_ACTIVATION_DUTYCYCLE           10000000 // 10 [s] value in us
-
-/*!
  * Defines the application data transmission duty cycle. 5s, value in [us].
  */
 #define APP_TX_DUTYCYCLE                            5000000
@@ -96,13 +91,11 @@ Maintainer: Miguel Luis and Gregory Cristian
 
 #endif
 
-#if( OVER_THE_AIR_ACTIVATION != 0 )
-
 static uint8_t DevEui[] = LORAWAN_DEVICE_EUI;
 static uint8_t AppEui[] = LORAWAN_APPLICATION_EUI;
 static uint8_t AppKey[] = LORAWAN_APPLICATION_KEY;
 
-#else
+#if( OVER_THE_AIR_ACTIVATION == 0 )
 
 static uint8_t NwkSKey[] = LORAWAN_NWKSKEY;
 static uint8_t AppSKey[] = LORAWAN_APPSKEY;
@@ -251,11 +244,10 @@ void SerialDisplayRefresh( void )
     SerialDisplayUpdateDevAddr( DevAddr );
     SerialDisplayUpdateKey( 12, NwkSKey );
     SerialDisplayUpdateKey( 13, AppSKey );
-#else
+#endif
     SerialDisplayUpdateEui( 5, DevEui );
     SerialDisplayUpdateEui( 6, AppEui );
     SerialDisplayUpdateKey( 7, AppKey );
-#endif
 
     mibReq.Type = MIB_NETWORK_JOINED;
     LoRaMacMibGetRequestConfirm( &mibReq );
@@ -483,6 +475,11 @@ static void McpsConfirm( McpsConfirm_t *mcpsConfirm )
         LoRaMacUplinkStatus.Datarate = mcpsConfirm->Datarate;
         LoRaMacUplinkStatus.UplinkCounter = mcpsConfirm->UpLinkCounter;
 
+        // Switch LED 1 ON
+        Led1State = true;
+        Led1StateChanged = true;
+        TimerStart( &Led1Timer );
+
         UplinkStatusUpdated = true;
     }
     NextTx = true;
@@ -644,6 +641,20 @@ static void McpsIndication( McpsIndication_t *mcpsIndication )
                         LoRaMacMlmeRequest( &mlmeReq );
                     }
                     break;
+                case 6: // (ix)
+                    {
+                        MlmeReq_t mlmeReq;
+
+                        mlmeReq.Type = MLME_JOIN;
+
+                        mlmeReq.Req.Join.DevEui = DevEui;
+                        mlmeReq.Req.Join.AppEui = AppEui;
+                        mlmeReq.Req.Join.AppKey = AppKey;
+
+                        LoRaMacMlmeRequest( &mlmeReq );
+                        DeviceState = DEVICE_STATE_SLEEP;
+                    }
+                    break;
                 default:
                     break;
                 }
@@ -677,6 +688,8 @@ static void MlmeConfirm( MlmeConfirm_t *mlmeConfirm )
             {
                 // Status is OK, node has joined the network
                 IsNetworkJoinedStatusUpdate = true;
+                DeviceState = DEVICE_STATE_SEND;
+                NextTx = true;
                 break;
             }
             case MLME_LINK_CHECK:
@@ -710,6 +723,17 @@ int main( void )
 
     BoardInit( );
     SerialDisplayInit( );
+
+    SerialDisplayUpdateEui( 5, DevEui );
+    SerialDisplayUpdateEui( 6, AppEui );
+    SerialDisplayUpdateKey( 7, AppKey );
+
+#if( OVER_THE_AIR_ACTIVATION == 0 )
+    SerialDisplayUpdateNwkId( LORAWAN_NETWORK_ID );
+    SerialDisplayUpdateDevAddr( DevAddr );
+    SerialDisplayUpdateKey( 12, NwkSKey );
+    SerialDisplayUpdateKey( 13, AppSKey );
+#endif
 
     DeviceState = DEVICE_STATE_INIT;
 
@@ -788,6 +812,10 @@ int main( void )
                 LoRaMacChannelAdd( 7, ( ChannelParams_t )LC8 );
                 LoRaMacChannelAdd( 8, ( ChannelParams_t )LC9 );
                 LoRaMacChannelAdd( 9, ( ChannelParams_t )LC10 );
+
+                mibReq.Type = MIB_RX2_CHANNEL;
+                mibReq.Param.Rx2Channel = ( Rx2ChannelParams_t ){ 869525000, DR_3 };
+                LoRaMacMibSetRequestConfirm( &mibReq );
 #endif
 
 #endif
@@ -815,15 +843,7 @@ int main( void )
                 {
                     LoRaMacMlmeRequest( &mlmeReq );
                 }
-
-                SerialDisplayUpdateEui( 5, DevEui );
-                SerialDisplayUpdateEui( 6, AppEui );
-                SerialDisplayUpdateKey( 7, AppKey );
-
-                // Schedule next packet transmission
-                TxDutyCycleTime = OVER_THE_AIR_ACTIVATION_DUTYCYCLE;
-                DeviceState = DEVICE_STATE_CYCLE;
-
+                DeviceState = DEVICE_STATE_SLEEP;
 #else
                 mibReq.Type = MIB_NET_ID;
                 mibReq.Param.NetID = LORAWAN_NETWORK_ID;
@@ -845,11 +865,6 @@ int main( void )
                 mibReq.Param.IsNetworkJoined = true;
                 LoRaMacMibSetRequestConfirm( &mibReq );
 
-                SerialDisplayUpdateNwkId( LORAWAN_NETWORK_ID );
-                SerialDisplayUpdateDevAddr( DevAddr );
-                SerialDisplayUpdateKey( 12, NwkSKey );
-                SerialDisplayUpdateKey( 13, AppSKey );
-
                 DeviceState = DEVICE_STATE_SEND;
 #endif
                 IsNetworkJoinedStatusUpdate = true;
@@ -864,11 +879,6 @@ int main( void )
                     PrepareTxFrame( AppPort );
 
                     NextTx = SendFrame( );
-
-                    // Switch LED 1 ON
-                    Led1State = true;
-                    Led1StateChanged = true;
-                    TimerStart( &Led1Timer );
                 }
                 if( ComplianceTest.Running == true )
                 {

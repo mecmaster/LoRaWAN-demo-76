@@ -17,7 +17,7 @@ Maintainer: Miguel Luis and Gregory Cristian
 Timer TimeCounter;
 Ticker LoadTimeCounter;
 
-volatile uint32_t CurrentTime = 0;
+volatile uint64_t CurrentTime = 0;
 
 void TimerResetTimeCounter( void )
 {
